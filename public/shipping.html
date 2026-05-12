@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shipping Quote</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #ffffff;
+      color: #1a1a1a;
+      padding: 24px;
+      max-width: 480px;
+    }
+
+    h1 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 20px;
+    }
+
+    .field { margin-bottom: 16px; }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* Searchable product dropdown */
+    .search-wrap { position: relative; }
+    input[type="text"], input[type="tel"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #1D9E75; }
+
+    .dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: #fff;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 100;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .dropdown.open { display: block; }
+    .dropdown-item {
+      padding: 9px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .dropdown-item:hover { background: #f5f5f5; }
+    .dropdown-item .item-name { flex: 1; }
+    .dropdown-item .item-weight { font-size: 12px; color: #888; white-space: nowrap; }
+    .dropdown-empty { padding: 10px 12px; font-size: 13px; color: #aaa; }
+
+    .selected-product {
+      display: none;
+      background: #f0faf6;
+      border: 1.5px solid #1D9E75;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .selected-product.hidden { display: none; }
+    .clear-btn {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 0 0 8px;
+      line-height: 1;
+    }
+    .clear-btn:hover { color: #333; }
+
+    .get-quote-btn {
+      width: 100%;
+      background: #1D9E75;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.15s;
+    }
+    .get-quote-btn:hover { background: #178a64; }
+    .get-quote-btn:disabled { background: #b2dfcf; cursor: not-allowed; }
+
+    .result {
+      display: none;
+      margin-top: 20px;
+      background: #f0faf6;
+      border: 1.5px solid #1D9E75;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .result.visible { display: block; }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 5px 0;
+    }
+    .result-row + .result-row { border-top: 1px solid #c8ead9; }
+    .result-label { font-size: 13px; color: #555; }
+    .result-value { font-size: 15px; font-weight: 600; color: #111; }
+    .result-value.big { font-size: 22px; color: #1D9E75; }
+
+    .error-msg {
+      display: none;
+      margin-top: 14px;
+      background: #fff0f0;
+      border: 1.5px solid #e88;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      color: #c00;
+    }
+    .error-msg.visible { display: block; }
+
+    .status { font-size: 13px; color: #888; margin-top: 10px; min-height: 18px; }
+
+    .disclaimer {
+      margin-top: 14px;
+      font-size: 11px;
+      color: #aaa;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Shipping Estimator</h1>
+  <p class="subtitle">UPS Ground estimate from Myerstown, PA</p>
+
+  <div class="field">
+    <label>Product</label>
+    <div class="search-wrap" id="searchWrap">
+      <input type="text" id="productSearch" placeholder="Search products..." autocomplete="off" />
+      <div class="dropdown" id="dropdown"></div>
+    </div>
+    <div class="selected-product hidden" id="selectedProduct">
+      <span id="selectedName"></span>
+      <button class="clear-btn" onclick="clearProduct()" title="Clear">✕</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Your Zip Code</label>
+    <input type="tel" id="zipInput" placeholder="e.g. 28401" maxlength="5" />
+  </div>
+
+  <button class="get-quote-btn" id="quoteBtn" onclick="getQuote()">Get Shipping Estimate</button>
+
+  <p class="status" id="status"></p>
+
+  <div class="result" id="result">
+    <div class="result-row">
+      <span class="result-label">UPS Ground estimate</span>
+      <span class="result-value big" id="rCost">—</span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">Estimated transit</span>
+      <span class="result-value" id="rDays">—</span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">Ship weight</span>
+      <span class="result-value" id="rWeight">—</span>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <p class="disclaimer">Estimates are for UPS Ground only and may vary from final invoice. Actual shipping charges are calculated at checkout.</p>
+
+  <script>
+    let selectedProduct = null;
+    let searchTimeout = null;
+
+    const searchInput = document.getElementById('productSearch');
+    const dropdown = document.getElementById('dropdown');
+    const selectedEl = document.getElementById('selectedProduct');
+    const selectedName = document.getElementById('selectedName');
+
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      const q = searchInput.value.trim();
+      if (q.length < 2) { dropdown.classList.remove('open'); return; }
+      searchTimeout = setTimeout(() => fetchProducts(q), 200);
+    });
+
+    searchInput.addEventListener('focus', () => {
+      if (searchInput.value.trim().length >= 2) dropdown.classList.add('open');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('searchWrap').contains(e.target)) {
+        dropdown.classList.remove('open');
+      }
+    });
+
+    async function fetchProducts(q) {
+      try {
+        const res = await fetch('/api/products?q=' + encodeURIComponent(q));
+        const items = await res.json();
+        renderDropdown(items);
+      } catch(e) {
+        dropdown.classList.remove('open');
+      }
+    }
+
+    function renderDropdown(items) {
+      if (!items.length) {
+        dropdown.innerHTML = '<div class="dropdown-empty">No products found</div>';
+      } else {
+        dropdown.innerHTML = items.map(p =>
+          `<div class="dropdown-item" onclick="selectProduct(${JSON.stringify(p.name).replace(/"/g, '&quot;')}, ${p.weight})">
+            <span class="item-name">${esc(p.name)}</span>
+            <span class="item-weight">${p.weight} lb</span>
+          </div>`
+        ).join('');
+      }
+      dropdown.classList.add('open');
+    }
+
+    function selectProduct(name, weight) {
+      selectedProduct = { name, weight };
+      searchInput.style.display = 'none';
+      selectedName.textContent = name + ' — ' + weight + ' lb';
+      selectedEl.classList.remove('hidden');
+      dropdown.classList.remove('open');
+    }
+
+    function clearProduct() {
+      selectedProduct = null;
+      searchInput.style.display = '';
+      searchInput.value = '';
+      selectedEl.classList.add('hidden');
+      document.getElementById('result').classList.remove('visible');
+      document.getElementById('errorMsg').classList.remove('visible');
+      document.getElementById('status').textContent = '';
+    }
+
+    function esc(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    async function getQuote() {
+      const zip = document.getElementById('zipInput').value.trim();
+      if (!selectedProduct) { setStatus('Please select a product first.'); return; }
+      if (!/^\d{5}$/.test(zip)) { setStatus('Please enter a valid 5-digit zip code.'); return; }
+
+      const btn = document.getElementById('quoteBtn');
+      btn.disabled = true;
+      setStatus('Getting UPS rate...');
+      document.getElementById('result').classList.remove('visible');
+      document.getElementById('errorMsg').classList.remove('visible');
+
+      try {
+        const res = await fetch('/api/shipping-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toZip: zip, weightLbs: selectedProduct.weight })
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          showError(data.error);
+          setStatus('');
+        } else {
+          document.getElementById('rCost').textContent = '$' + data.cost.toFixed(2);
+          document.getElementById('rDays').textContent = data.businessDays ? data.businessDays + ' business day' + (data.businessDays != 1 ? 's' : '') : 'See checkout';
+          document.getElementById('rWeight').textContent = selectedProduct.weight + ' lb';
+          document.getElementById('result').classList.add('visible');
+          setStatus('');
+        }
+      } catch(e) {
+        showError('Could not reach server: ' + e.message);
+        setStatus('');
+      }
+
+      btn.disabled = false;
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+  </script>
+</body>
+</html>

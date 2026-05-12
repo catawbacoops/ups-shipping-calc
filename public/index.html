@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pickup Orders</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #ffffff;
+      color: #1a1a1a;
+      padding: 20px 24px 16px;
+    }
+
+    .header {
+      margin-bottom: 16px;
+    }
+    .header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111;
+      margin-bottom: 2px;
+    }
+    .header p {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .metric {
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .metric-label {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 3px;
+    }
+    .metric-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #111;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+      min-height: 16px;
+    }
+    .status.error { color: #c0392b; }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 260px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: #888;
+    }
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .refresh-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      font-size: 12px;
+      background: none;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      color: #555;
+    }
+    .refresh-btn:hover { background: #f5f5f5; }
+  </style>
+</head>
+<body>
+
+  <div class="header" style="position:relative;">
+    <h1>Pickup Orders — New Status</h1>
+    <p>Cumulative subtotals &bull; $0–$1,500</p>
+    <button class="refresh-btn" onclick="loadOrders()">↻ Refresh</button>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Total</div><div class="metric-value" id="mTotal">—</div></div>
+    <div class="metric"><div class="metric-label">Orders</div><div class="metric-value" id="mCount">—</div></div>
+    <div class="metric"><div class="metric-label">Average</div><div class="metric-value" id="mAvg">—</div></div>
+  </div>
+
+  <div class="status" id="status">Loading orders…</div>
+
+  <div class="chart-wrap">
+    <canvas id="chart" role="img" aria-label="Bar chart of cumulative subtotals for Square pickup orders with new status, $0 to $1500"></canvas>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#1D9E75;"></span>Cumulative total</span>
+    <span><span class="dot" style="background:#9FE1CB;border:1px solid #5DCAA5;"></span>Per-order subtotal</span>
+  </div>
+
+  <script>
+    let chart = null;
+
+    function fmt(cents) {
+      return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function setStatus(msg, err) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = 'status' + (err ? ' error' : '');
+    }
+
+    async function loadOrders() {
+      setStatus('Loading orders…');
+      try {
+        const res = await fetch('/api/pickup-orders');
+        const data = await res.json();
+
+        if (data.error) { setStatus('Error: ' + data.error, true); return; }
+
+        const orders = data.orders || [];
+        if (!orders.length) { setStatus('No open pickup orders found.'); renderChart([]); return; }
+
+        renderChart(orders);
+        setStatus('Updated just now · ' + orders.length + ' order' + (orders.length !== 1 ? 's' : ''));
+      } catch (e) {
+        setStatus('Could not reach server: ' + e.message, true);
+      }
+    }
+
+    function renderChart(orders) {
+      let cum = 0;
+      const cumData = orders.map(o => { cum += o.subtotal; return Math.round(cum); });
+      const indData = orders.map(o => Math.round(o.subtotal));
+      const labels = orders.map(o => '#' + o.index);
+
+      const total = cum;
+      const count = orders.length;
+      const avg = count ? Math.round(total / count) : 0;
+
+      document.getElementById('mTotal').textContent = count ? fmt(total) : '—';
+      document.getElementById('mCount').textContent = count || '—';
+      document.getElementById('mAvg').textContent = count ? fmt(avg) : '—';
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(document.getElementById('chart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Cumulative total',
+              data: cumData,
+              backgroundColor: '#1D9E75',
+              borderColor: '#0F6E56',
+              borderWidth: 1,
+              borderRadius: 4,
+              order: 1
+            },
+            {
+              label: 'Per-order subtotal',
+              data: indData,
+              backgroundColor: '#9FE1CB',
+              borderColor: '#5DCAA5',
+              borderWidth: 1,
+              borderRadius: 4,
+              order: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: { label: c => c.dataset.label + ': ' + fmt(c.parsed.y) }
+            }
+          },
+          scales: {
+            y: {
+              min: 0,
+              max: 150000,
+              ticks: {
+                callback: v => '$' + (v / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }),
+                maxTicksLimit: 7,
+                color: '#999'
+              },
+              grid: { color: 'rgba(0,0,0,0.06)' },
+              border: { display: false }
+            },
+            x: {
+              ticks: { autoSkip: true, maxRotation: 45, color: '#999', font: { size: 11 } },
+              grid: { display: false },
+              border: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    loadOrders();
+    setInterval(loadOrders, 60000);
+  </script>
+</body>
+</html>
