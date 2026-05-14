@@ -227,13 +227,23 @@
   var productName = '';
 
   function getCatalogIdFromUrl() {
-    // Square Online product URLs end in /product/product-name/CATALOGID
-    var parts = window.location.pathname.split('/');
-    // Find the last non-empty segment
-    for (var i = parts.length - 1; i >= 0; i--) {
-      if (parts[i] && parts[i].length > 10 && /^[A-Z0-9]+$/.test(parts[i])) {
-        return parts[i];
-      }
+    // First check URL param (passed from parent page via iframe src)
+    var params = new URLSearchParams(window.location.search);
+    var paramId = params.get('catalogId');
+    if (paramId) return paramId;
+
+    // Fall back to referrer URL (parent page URL)
+    var ref = document.referrer || '';
+    var sources = [ref, window.location.href];
+    for (var s = 0; s < sources.length; s++) {
+      try {
+        var parts = new URL(sources[s]).pathname.split('/');
+        for (var i = parts.length - 1; i >= 0; i--) {
+          if (parts[i] && parts[i].length > 10 && /^[A-Z0-9]+$/.test(parts[i])) {
+            return parts[i];
+          }
+        }
+      } catch(e) {}
     }
     return null;
   }
@@ -248,8 +258,12 @@
     var catalogId = getCatalogIdFromUrl();
 
     if (!catalogId) {
-      // Not a product page — hide the widget entirely
-      document.querySelector('.widget').style.display = 'none';
+      // Show generic message if no catalog ID found
+      document.getElementById('product-loading').style.display = 'none';
+      document.getElementById('product-name').textContent = 'Enter ZIP to estimate shipping';
+      document.getElementById('product-name').style.display = 'block';
+      document.getElementById('estimate-btn').disabled = true;
+      setStatus('Product not detected — visit a product page to get a shipping estimate.');
       return;
     }
 
