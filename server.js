@@ -10,6 +10,15 @@ const PORT = process.env.PORT || 3000;
 // Load product catalog
 const PRODUCTS = JSON.parse(fs.readFileSync(path.join(__dirname, "products.json"), "utf8"));
 
+// Load weight lookup (SKU -> lbs)
+let WEIGHT_LOOKUP = {};
+try {
+  WEIGHT_LOOKUP = JSON.parse(fs.readFileSync(path.join(__dirname, "weight_lookup.json"), "utf8"));
+  console.log(`Loaded ${Object.keys(WEIGHT_LOOKUP).length} SKU weights`);
+} catch(e) {
+  console.warn("weight_lookup.json not found");
+}
+
 const TOKEN = process.env.SQUARE_TOKEN;
 const ENV = process.env.SQUARE_ENV || "production";
 const BASE =
@@ -81,6 +90,44 @@ app.get("/api/pickup-orders", async (req, res) => {
     }));
 
     res.json({ orders, env: ENV });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Look up product info by Square catalog ID (used by product page embed)
+app.get("/api/product/:catalogId", async (req, res) => {
+  // Allow cross-origin requests so the embed script can call this from grainmill.coop
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const { catalogId } = req.params;
+  if (!catalogId) return res.status(400).json({ error: "Missing catalog ID" });
+
+  try {
+    const sqRes = await fetch(`${BASE}/v2/catalog/object/${catalogId}?include_related_objects=true`, {
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Square-Version": "2024-04-17",
+        "Content-Type": "application/json",
+      },
+    });
+    const data = await sqRes.json();
+    if (!sqRes.ok) return res.status(sqRes.status).json({ error: data.errors?.[0]?.detail || "Not found" });
+
+    const obj = data.object;
+    const itemData = obj?.item_data || {};
+    const variation = (itemData.variations || [])[0];
+    const variationData = variation?.item_variation_data || {};
+    const sku = variationData.sku ? String(variationData.sku).trim() : null;
+    const weight = sku && WEIGHT_LOOKUP[sku] ? WEIGHT_LOOKUP[sku] : null;
+    const name = itemData.name || "";
+
+    // Find image URL from related objects
+    const imageId = itemData.image_id || (itemData.image_ids || [])[0];
+    const relatedImage = (data.related_objects || []).find(o => o.id === imageId);
+    const imageUrl = relatedImage?.image_data?.url || "";
+
+    res.json({ name, sku, weight, imageUrl, catalogId });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
