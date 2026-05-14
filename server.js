@@ -126,7 +126,8 @@ app.post("/api/shipping-quote", async (req, res) => {
       return res.status(500).json({ error: "UPS auth failed: " + (tokenData.response?.errors?.[0]?.message || JSON.stringify(tokenData)) });
     }
 
-    // Step 2: Call UPS Rating API
+    // Step 2: Call UPS Rating API with negotiated rates
+    const upsAccountNumber = process.env.UPS_ACCOUNT_NUMBER || "";
     const rateRes = await fetch("https://onlinetools.ups.com/api/rating/v2403/Rate", {
       method: "POST",
       headers: {
@@ -140,6 +141,7 @@ app.post("/api/shipping-quote", async (req, res) => {
           Request: { RequestOption: "Shoptimeintransit" },
           Shipment: {
             Shipper: {
+              ShipperNumber: upsAccountNumber,
               Address: { PostalCode: fromZip, CountryCode: "US" },
             },
             ShipTo: {
@@ -147,6 +149,9 @@ app.post("/api/shipping-quote", async (req, res) => {
             },
             ShipFrom: {
               Address: { PostalCode: fromZip, CountryCode: "US" },
+            },
+            ShipmentRatingOptions: {
+              NegotiatedRatesIndicator: "",
             },
             Service: { Code: "03", Description: "UPS Ground" },
             Package: {
@@ -170,7 +175,10 @@ app.post("/api/shipping-quote", async (req, res) => {
     const rated = rateData.RateResponse?.RatedShipment;
     if (!rated) return res.status(500).json({ error: "No rate returned from UPS" });
 
-    const cost = parseFloat(rated.TotalCharges?.MonetaryValue || 0);
+    // Use negotiated rate if available, otherwise fall back to retail
+    const negotiatedRate = rated.NegotiatedRateCharges?.TotalCharge?.MonetaryValue;
+    const retailRate = rated.TotalCharges?.MonetaryValue;
+    const cost = parseFloat(negotiatedRate || retailRate || 0);
     const days = rated.TimeInTransit?.ServiceSummary?.EstimatedArrival?.Arrival?.Date || null;
     const businessDays = rated.GuaranteedDelivery?.BusinessDaysInTransit
       || rated.TimeInTransit?.ServiceSummary?.EstimatedArrival?.BusinessDaysInTransit
