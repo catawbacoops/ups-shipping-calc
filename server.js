@@ -142,13 +142,13 @@ app.post("/api/shipping-quote", async (req, res) => {
           Shipment: {
             Shipper: {
               ShipperNumber: upsAccountNumber,
-              Address: { PostalCode: fromZip, CountryCode: "US" },
+              Address: { PostalCode: fromZip, CountryCode: "US", StateProvinceCode: process.env.SHIP_FROM_STATE || "PA" },
             },
             ShipTo: {
               Address: { PostalCode: toZip, CountryCode: "US", ResidentialAddressIndicator: "" },
             },
             ShipFrom: {
-              Address: { PostalCode: fromZip, CountryCode: "US" },
+              Address: { PostalCode: fromZip, CountryCode: "US", StateProvinceCode: process.env.SHIP_FROM_STATE || "PA" },
             },
             ShipmentRatingOptions: {
               NegotiatedRatesIndicator: "",
