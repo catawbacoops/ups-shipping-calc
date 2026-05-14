@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shipping Estimator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: transparent;
+      color: #1a1a1a;
+      padding: 0;
+    }
+
+    .widget {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      padding: 18px 20px;
+      max-width: 480px;
+    }
+
+    .widget-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .widget-title svg {
+      flex-shrink: 0;
+    }
+
+    .product-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #f8f8f6;
+      border-radius: 7px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+
+    .product-img {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 5px;
+      flex-shrink: 0;
+      display: none;
+    }
+
+    .product-name {
+      flex: 1;
+      font-weight: 500;
+      color: #222;
+      line-height: 1.3;
+    }
+
+    .product-weight {
+      font-size: 12px;
+      color: #888;
+      white-space: nowrap;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .zip-field {
+      flex: 1;
+    }
+
+    .zip-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 5px;
+    }
+
+    .zip-field input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid #ddd;
+      border-radius: 7px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .zip-field input:focus {
+      border-color: #9B804A;
+    }
+
+    .estimate-btn {
+      padding: 9px 18px;
+      background: #9B804A;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .estimate-btn:hover { background: #7d6639; }
+    .estimate-btn:disabled { background: #c5b08a; cursor: not-allowed; }
+
+    .status {
+      font-size: 12px;
+      color: #888;
+      margin-top: 10px;
+      min-height: 16px;
+    }
+
+    .status.error { color: #c0392b; }
+
+    .result {
+      display: none;
+      margin-top: 12px;
+      background: #f5f0e8;
+      border: 1.5px solid #9B804A;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .result.visible { display: block; }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 4px 0;
+    }
+
+    .result-row + .result-row {
+      border-top: 1px solid #d9cbb5;
+    }
+
+    .result-label { font-size: 12px; color: #666; }
+    .result-value { font-size: 15px; font-weight: 600; color: #111; }
+    .result-value.cost { font-size: 20px; color: #9B804A; }
+
+    .disclaimer {
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
+    .loading-skeleton {
+      height: 14px;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+      border-radius: 4px;
+      width: 70%;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="widget">
+  <div class="widget-title">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9B804A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    </svg>
+    Estimate UPS Ground Shipping
+  </div>
+
+  <div class="product-row" id="product-row">
+    <div class="loading-skeleton" id="product-loading"></div>
+    <img class="product-img" id="product-img" alt="" />
+    <div class="product-name" id="product-name" style="display:none;"></div>
+    <div class="product-weight" id="product-weight" style="display:none;"></div>
+  </div>
+
+  <div class="input-row">
+    <div class="zip-field">
+      <label>Your ZIP Code</label>
+      <input type="tel" id="zip-input" placeholder="e.g. 27587" maxlength="5" onkeydown="if(event.key==='Enter')getRate()" />
+    </div>
+    <button class="estimate-btn" id="estimate-btn" onclick="getRate()" disabled>Estimate</button>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="result" id="result">
+    <div class="result-row">
+      <span class="result-label">UPS Ground estimate</span>
+      <span class="result-value cost" id="r-cost"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">Estimated transit</span>
+      <span class="result-value" id="r-days"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">Ship weight</span>
+      <span class="result-value" id="r-weight"></span>
+    </div>
+  </div>
+
+  <p class="disclaimer">Ships from Myerstown, PA · UPS Ground estimate only · actual rate calculated at checkout</p>
+</div>
+
+<script>
+  var SERVER = 'https://square-pickup-chart.onrender.com';
+  var productWeight = null;
+  var productName = '';
+
+  function getCatalogIdFromUrl() {
+    // Square Online product URLs end in /product/product-name/CATALOGID
+    var parts = window.location.pathname.split('/');
+    // Find the last non-empty segment
+    for (var i = parts.length - 1; i >= 0; i--) {
+      if (parts[i] && parts[i].length > 10 && /^[A-Z0-9]+$/.test(parts[i])) {
+        return parts[i];
+      }
+    }
+    return null;
+  }
+
+  function setStatus(msg, err) {
+    var el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status' + (err ? ' error' : '');
+  }
+
+  async function loadProduct() {
+    var catalogId = getCatalogIdFromUrl();
+
+    if (!catalogId) {
+      // Not a product page — hide the widget entirely
+      document.querySelector('.widget').style.display = 'none';
+      return;
+    }
+
+    try {
+      var res = await fetch(SERVER + '/api/product/' + catalogId);
+      var data = await res.json();
+
+      if (data.error || !data.name) {
+        document.getElementById('product-loading').style.display = 'none';
+        document.getElementById('product-name').style.display = 'block';
+        document.getElementById('product-name').textContent = 'Product';
+        return;
+      }
+
+      productName = data.name;
+      productWeight = data.weight;
+
+      // Update UI
+      document.getElementById('product-loading').style.display = 'none';
+
+      if (data.imageUrl) {
+        var img = document.getElementById('product-img');
+        img.src = data.imageUrl;
+        img.style.display = 'block';
+      }
+
+      document.getElementById('product-name').textContent = data.name;
+      document.getElementById('product-name').style.display = 'block';
+
+      if (data.weight) {
+        document.getElementById('product-weight').textContent = data.weight + ' lb';
+        document.getElementById('product-weight').style.display = 'block';
+      }
+
+      document.getElementById('estimate-btn').disabled = false;
+
+    } catch(e) {
+      document.getElementById('product-loading').style.display = 'none';
+      document.getElementById('product-name').textContent = 'Enter ZIP to estimate shipping';
+      document.getElementById('product-name').style.display = 'block';
+      document.getElementById('estimate-btn').disabled = false;
+    }
+  }
+
+  async function getRate() {
+    var zip = document.getElementById('zip-input').value.trim();
+    if (!/^\d{5}$/.test(zip)) { setStatus('Please enter a valid 5-digit ZIP code.', true); return; }
+    if (!productWeight) { setStatus('Weight not available for this product — contact us for a shipping quote.', true); return; }
+
+    var btn = document.getElementById('estimate-btn');
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    setStatus('Getting UPS rate…');
+    document.getElementById('result').classList.remove('visible');
+
+    try {
+      var res = await fetch(SERVER + '/api/shipping-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toZip: zip, weightLbs: productWeight })
+      });
+      var data = await res.json();
+
+      if (data.error) {
+        setStatus(data.error, true);
+      } else {
+        document.getElementById('r-cost').textContent = '$' + data.cost.toFixed(2);
+        document.getElementById('r-days').textContent = data.businessDays
+          ? data.businessDays + ' business day' + (data.businessDays != 1 ? 's' : '')
+          : 'See checkout';
+        document.getElementById('r-weight').textContent = productWeight + ' lb';
+        document.getElementById('result').classList.add('visible');
+        setStatus('');
+      }
+    } catch(e) {
+      setStatus('Could not get rate: ' + e.message, true);
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Estimate';
+  }
+
+  loadProduct();
+</script>
+</body>
+</html>
